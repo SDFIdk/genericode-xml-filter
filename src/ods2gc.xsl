@@ -10,28 +10,51 @@
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
     exclude-result-prefixes="gc office table text"
     extension-element-prefixes="str">
-    
-    <!-- XSLT 1.0 is used, as this transformation is written to be used in LibreOffice, which uses the libxslt library.
-    libxslt supports most of the EXSLT extensions. For more informatation about EXSLT, see https://exslt.github.io/ -->
 
     <xsl:output
         method="xml"
         version="1.0"
         encoding="UTF-8"
         indent="yes" />
+        
+    <!-- This stylesheet assumes sheets with the following names -->
+    <xsl:param
+        name="sheetNameIdentification"
+        select="'Identification'" />
+    <xsl:param
+        name="sheetNameColumnSet"
+        select="'Columns'" />
+    <xsl:param
+        name="sheetNameSimpleCodeList"
+        select="'Values'" />
+        
+    <!-- Create a lookup key with 
+    - index: the position of the cell within the table row
+    - value: the table cell
+    The position() function cannot be used in this case, as it will always return 1.
+    In XSLT 1.0 stylesheets, it is an error for the value of either the use attribute or the match attribute to contain a variable reference,
+    see also https://www.w3.org/TR/xslt-10/#key,
+    therefore, the name of the sheet is hardcoded -->
+    <xsl:key
+        name="valuesColumnPositionAndNameKey"
+        match="table:table[@table:name = 'Values']/table:table-row[position() = 1]/table:table-cell"
+        use="count(preceding-sibling::table:table-cell) + 1" />
 
     <xsl:template match="/">
         <gc:CodeList xmlns:gc="http://docs.oasis-open.org/codelist/ns/genericode/1.0/">
             <!-- This stylesheet assumes that the ODS file has sheets with the following names.
             The values are hardcoded, as with XSLT 1.0, variables are not allowed in match,
             see also https://www.w3.org/TR/xslt-10/#section-Defining-Template-Rules -->
-            <xsl:apply-templates select="//office:spreadsheet/table:table[@table:name = 'Identification']" />
-            <xsl:apply-templates select="//office:spreadsheet/table:table[@table:name = 'Columns']" />
-            <xsl:apply-templates select="//office:spreadsheet/table:table[@table:name = 'Values']" />
+            <xsl:apply-templates select="//office:spreadsheet/table:table[@table:name = $sheetNameIdentification]" mode="identification" />
+            <xsl:apply-templates select="//office:spreadsheet/table:table[@table:name = $sheetNameColumnSet]" mode="columnset" />
+            <xsl:apply-templates select="//office:spreadsheet/table:table[@table:name = $sheetNameSimpleCodeList]" mode="values" />
         </gc:CodeList>
     </xsl:template>
 
-    <xsl:template match="table:table[@table:name = 'Identification']">
+    <!-- Use the mode attribute and not a reference to $sheetNameIdentification in the match attribute,
+    as in XSLT 1.0 stylesheetss, it is an error for the value of the match attribute to contain a variable reference,
+    see also https://www.w3.org/TR/xslt-10/#section-Defining-Template-Rules -->
+    <xsl:template match="table:table" mode="identification">
         <Identification>
             <xsl:for-each select="table:table-row[not(starts-with(table:table-cell[position() = 1]/text:p, 'Agency/'))]">
                 <!-- Curly brackets are needed in the specification of the name of the element!
@@ -66,7 +89,7 @@
         </xsl:if>
     </xsl:template>
 
-    <xsl:template match="table:table[@table:name = 'Columns']">
+    <xsl:template match="table:table" mode="columnset">
         <ColumnSet>
             <xsl:for-each select="table:table-row[position() > 1]">
                 <!-- 
@@ -144,40 +167,70 @@
             </xsl:for-each>
         </ColumnSet>
     </xsl:template>
-
-    <xsl:template match="table:table[@table:name = 'Values']">
-        <!-- Ignore the header row and process the actual data in the rest of the rows -->
+    
+    <xsl:template match="table:table" mode="values">
+        <!-- The header row is used to create a lookup key, see above;
+        process the actual data in the rest of the rows -->
         <SimpleCodeList>
             <xsl:for-each select="table:table-row[position() > 1]">
                 <Row>
                     <xsl:for-each select="table:table-cell">
-                        <!-- Find the header name of the column this cell is located in by finding the
-                        header cell in the same column as to the current cell being processed. -->
-                        <xsl:variable
-                            name="tableCellPosition"
-                            select="position()" />
-                        <!-- A Value element is always written, also if the cell contains an empty string.
-                        Following this convention makes it easier to transform to other formats.
-                        This is more strict than the genericode specification, which also allows rows that do not have a
-                        Value element corresponding to every column.
-                        In this transformation, an undefined value (an empty string in the cell) (only applicable in optional columns)
-                        is always written as a Value element that does not contain a SimpleValue element. -->
-                        <Value>
-                            <xsl:attribute name="ColumnRef">
-                                <!-- Having the column headers in a variable instead of checking the first row every time would be more efficient.
-                                However, it is possible to do this in an elegant way with XSLT 1.0? -->
-                                <xsl:value-of select="../../table:table-row[position() = 1]/table:table-cell[position() = $tableCellPosition]/text:p" />
-                            </xsl:attribute>
-                            <xsl:if test="string-length(normalize-space(text:p)) > 0">
-                                <SimpleValue>
-                                    <xsl:value-of select="text:p" />
-                                </SimpleValue>
-                            </xsl:if>
-                        </Value>
+                        <xsl:call-template name="writeValue">
+                            <!-- Default value of table:number-columns-repeated is 1 according to the
+                            OpenDocument Format specification, see also
+                            https://docs.oasis-open.org/office/OpenDocument/v1.3/os/part3-schema/OpenDocument-v1.3-os-part3-schema.html#__RefHeading__1418526_253892949 -->
+                            <xsl:with-param
+                                name="columnPosition"
+                                select="count(preceding-sibling::table:table-cell[not(@table:number-columns-repeated)]) + sum(preceding-sibling::table:table-cell/@table:number-columns-repeated) + 1" />
+                            <xsl:with-param name="noOfRepetitions">
+                                <xsl:choose>
+                                    <xsl:when test="count(@table:number-columns-repeated) = 1">
+                                        <xsl:value-of select="@table:number-columns-repeated" />
+                                    </xsl:when>
+                                    <xsl:otherwise>
+                                        <xsl:value-of select="1" />
+                                    </xsl:otherwise>
+                                </xsl:choose>
+                            </xsl:with-param>
+                        </xsl:call-template>
                     </xsl:for-each>
                 </Row>
             </xsl:for-each>
         </SimpleCodeList>
+    </xsl:template>
+
+    <xsl:template name="writeValue">
+        <!-- number of the column the value is located in the spreadsheet visible in the GUI (column A is 1, column B is 2, etc.)  -->
+        <xsl:param name="columnPosition" />
+        <!-- number of times that the value is repeated in the successive columns  -->
+        <xsl:param name="noOfRepetitions" />
+        <!-- A Value element is always written, thus also if the cell contains an empty string.
+        Following this convention makes it easier to transform to other formats.
+        This is more strict than the genericode specification, which also allows rows that do not have a
+        Value element corresponding to every column. -->
+        <Value>
+            <xsl:attribute name="ColumnRef">
+            	<xsl:value-of select="key('valuesColumnPositionAndNameKey', $columnPosition)/text:p" />
+            </xsl:attribute>
+            <!-- In this transformation, an undefined value (an empty string in the cell) (only applicable in optional columns)
+            is always written as a Value element that does not contain a SimpleValue element. -->
+            <xsl:if test="string-length(normalize-space(text:p)) > 0">
+                <SimpleValue>
+                    <xsl:value-of select="text:p" />
+                </SimpleValue>
+            </xsl:if>
+        </Value>
+        <xsl:if test="$noOfRepetitions > 1">
+            <!-- This is a recursive template -->
+            <xsl:call-template name="writeValue">
+                <xsl:with-param
+                    name="columnPosition"
+                    select="$columnPosition + 1" />
+                <xsl:with-param
+                    name="noOfRepetitions"
+                    select="$noOfRepetitions - 1" />
+            </xsl:call-template>
+        </xsl:if>
     </xsl:template>
 
 </xsl:stylesheet>
