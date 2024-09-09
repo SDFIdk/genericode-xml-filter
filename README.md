@@ -12,7 +12,7 @@ genericode-xml-filter is an [XML filter for LibreOffice](https://help.libreoffic
 
 ### OpenDocument format
 
-The OpenDocument Format is “a free, open XML-based document file format for office applications, to be used for documents containing text, spreadsheets, charts, and graphical elements”[^2]. The OpenDocument Format is also developed by OASIS. See the [website of the OASIS Open Document Format for Office Applications (OpenDocument) TC](https://www.oasis-open.org/committees/office/) and the [Wikipedia article on OpenDocument](https://en.wikipedia.org/wiki/OpenDocument) for more information.
+The [OpenDocument Format](https://docs.oasis-open.org/office/OpenDocument/v1.3/OpenDocument-v1.3-part1-introduction.html) is “a free, open XML-based document file format for office applications, to be used for documents containing text, spreadsheets, charts, and graphical elements”[^2]. The OpenDocument Format is also developed by OASIS. See the [website of the OASIS Open Document Format for Office Applications (OpenDocument) TC](https://www.oasis-open.org/committees/office/) and the [Wikipedia article on OpenDocument](https://en.wikipedia.org/wiki/OpenDocument) for more information.
 
 [^2]: Source: [OpenDocument V1.3 OASIS Standard published](https://www.oasis-open.org/2021/06/16/opendocument-v1-3-oasis-standard-published/)
 
@@ -24,11 +24,11 @@ The OpenDocument Format is “a free, open XML-based document file format for of
 
 ## Installation
 
-Prerequisite: LibreOffice is installed, the minimum version needed is 25.2.5[^4].
+Prerequisite: LibreOffice is installed, the minimum version needed is 24.2.5[^4].
 
 [^4]: This is because of a [bug in the XML filter functionality](https://bugs.documentfoundation.org/show_bug.cgi?id=161789) in earlier versions.
 
-1. Download the latest release of the genericode XML filter
+1. Download the [latest release of the genericode XML filter](https://github.com/SDFIdk/genericode-xml-filter/releases/latest)
 2. Open LibreOffice Calc
 3. Go to Tools -> XML Filter Settings... (for more information about this dialog, see the [LibreOffice Help page on XML Filter Settings](https://help.libreoffice.org/latest/en-US/text/shared/01/06150000.html))
 4. Choose Open Package...
@@ -86,11 +86,15 @@ Transformation tab:
 - XSLT for import: location of [gc2ods.xsl](src/gc2ods.xsl) in your local working copy
 - Template for import: (leave empty)
 
-The XSLT stylesheets can be tested using [xsltproc](https://gnome.pages.gitlab.gnome.org/libxslt/xsltproc.html):
+The XSLT stylesheets can be tested using [xsltproc](https://gnome.pages.gitlab.gnome.org/libxslt/xsltproc.html).
+
+For testing [ods2gc.xsl](src/ods2gc.xsl), save the code list you are testing with as a Flat XML ODF Spreadsheet (*.fods file extension). You can investigate that file using an XML editor.
 
 ```bat
-xsltproc -o path\to\output.gc path\to\ods2gc.xsl path\to\codelist.xml
+xsltproc -o path\to\output.gc path\to\ods2gc.xsl path\to\codelist.fods
 ```
+
+For testing [gc2ods.xsl](src/gc2ods.xsl), convert the genericode code list to an XML file. The resulting file corresponds to file content.xml in an ODF Spreadsheet (*.ods file extension), which is a zip file.
 
 ```bat
 xsltproc -o path\to\output.xml path\to\gc2ods.xsl path\to\codelist.gc
