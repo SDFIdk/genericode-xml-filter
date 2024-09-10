@@ -1,6 +1,6 @@
 # genericode-xml-filter
 
-genericode-xml-filter is an [XML filter for LibreOffice](https://help.libreoffice.org/latest/en-US/text/shared/guide/xsltfilter.html) that converts genericode files to the OpenDocument Spreadsheet file format. As the XML filter can be integrated into LibreOffice seamlessly, genericode files can be loaded and saved transparently.
+genericode-xml-filter is an [XML filter for LibreOffice](https://help.libreoffice.org/latest/en-US/text/shared/guide/xsltfilter.html) that converts genericode files to OpenDocument Spreadsheet documents. As the XML filter can be integrated into LibreOffice seamlessly, genericode files can be loaded and saved transparently.
 
 ## About the underlying standards and tools
 
@@ -13,6 +13,8 @@ genericode-xml-filter is an [XML filter for LibreOffice](https://help.libreoffic
 ### OpenDocument format
 
 The [OpenDocument Format](https://docs.oasis-open.org/office/OpenDocument/v1.3/OpenDocument-v1.3-part1-introduction.html) is “a free, open XML-based document file format for office applications, to be used for documents containing text, spreadsheets, charts, and graphical elements”[^2]. The OpenDocument Format is also developed by OASIS. See the [website of the OASIS Open Document Format for Office Applications (OpenDocument) TC](https://www.oasis-open.org/committees/office/) and the [Wikipedia article on OpenDocument](https://en.wikipedia.org/wiki/OpenDocument) for more information.
+
+genericode-xml-filter uses version 1.3 of the OpenDocument specification.
 
 [^2]: Source: [OpenDocument V1.3 OASIS Standard published](https://www.oasis-open.org/2021/06/16/opendocument-v1-3-oasis-standard-published/)
 
@@ -63,9 +65,10 @@ The spreadsheet contains three sheets:
 
 Conventions and limitations:
 
-- The id attribute and the short name of a column are equal. If a column has another value as ShortName than the id attribute in the genericode file, it will be replaced with the value of the id attribute when the genericode file is saved.
-- The id attribute is used for the column headers in sheet Values.
-- The order of the values must be the same as the order of the declared columns.
+- The `Id` attribute and the `ShortName` of a column are equal. If a column has another value as `ShortName` than the `Id` attribute in the genericode file, it will be replaced with the value of the `Id` attribute when the genericode file is saved.
+- The `Id` attribute is used for the column headers in sheet Values.
+- Undefined values must be encoded as an empty `Value` element.
+- The order of the `Value` elements must be the same as the order of the `Column` elements, if not, the transformation will be terminated and LibreOffice will display an error.
 - The Simple Dublin Core XML schema is used to encode the descriptions of the columns in the code list, see also https://www.dublincore.org/schemas/xmls/.
 
 ## Development
@@ -86,23 +89,6 @@ Transformation tab:
 - XSLT for import: location of [gc2ods.xsl](src/gc2ods.xsl) in your local working copy
 - Template for import: (leave empty)
 
-The XSLT stylesheets can be tested using [xsltproc](https://gnome.pages.gitlab.gnome.org/libxslt/xsltproc.html).
-
-For testing [ods2gc.xsl](src/ods2gc.xsl), save the code list you are testing with as a Flat XML ODF Spreadsheet (*.fods file extension). You can investigate that file using an XML editor.
-
-```bat
-xsltproc -o path\to\output.gc path\to\ods2gc.xsl path\to\codelist.fods
-```
-
-For testing [gc2ods.xsl](src/gc2ods.xsl), convert the genericode code list to an XML file. The resulting file corresponds to file content.xml in an ODF Spreadsheet (*.ods file extension), which is a zip file.
-
-```bat
-xsltproc -o path\to\output.xml path\to\gc2ods.xsl path\to\codelist.gc
-```
-
-> [!TIP]
-> xsltproc can be installed as a package of [OSGeo4W](https://trac.osgeo.org/osgeo4w/).
-
 LibreOffice uses the [libxslt](https://gitlab.gnome.org/GNOME/libxslt/-/wikis/home) library. This can be verified by adding the following comment to the output somewhere. libxslt provides an implementation of [XSLT 1.0](https://www.w3.org/TR/xslt-10/) and also supports most [EXSLT extension functions](https://exslt.github.io/).
 
 ```xml
@@ -110,6 +96,27 @@ LibreOffice uses the [libxslt](https://gitlab.gnome.org/GNOME/libxslt/-/wikis/ho
     <xsl:value-of select="system-property('xsl:vendor')" />
 </xsl:comment>
 ```
+
+Therefore, the XSLT stylesheets can be tested using [xsltproc](https://gnome.pages.gitlab.gnome.org/libxslt/xsltproc.html), the command line tool for libxslt.
+
+For testing [ods2gc.xsl](src/ods2gc.xsl), save the code list you are testing with as a Flat XML ODF Spreadsheet (.fods file extension). Investigate that file using an XML editor and use it as input to the XSLT transformation.
+
+```bat
+xsltproc -o path\to\output.gc path\to\ods2gc.xsl path\to\codelist.fods
+```
+
+For testing [gc2ods.xsl](src/gc2ods.xsl), transform the genericode code list to a Flat XML ODF Spreadsheet (.fods file extension). Validate the spreadsheet against the [OpenDocument RELAX NG schema](https://docs.oasis-open.org/office/OpenDocument/v1.3/os/schemas/OpenDocument-v1.3-schema.rng), e.g. with [xmllint](https://gnome.pages.gitlab.gnome.org/libxml2/xmllint.html), and verify that it looks as it should in LibreOffice.
+
+```bat
+xsltproc -o path\to\output.fods path\to\gc2ods.xsl path\to\codelist.gc
+```
+
+```bat
+xmllint --noout --relaxng path\to\OpenDocument-v1.3-schema.rng path\to\output.fods
+```
+
+> [!TIP]
+> xsltproc and xmllint can be installed as a package of [OSGeo4W](https://trac.osgeo.org/osgeo4w/).
 
 For more information about creating XML filters, see:
 
