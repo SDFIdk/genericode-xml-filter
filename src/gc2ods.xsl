@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xsl:stylesheet
     version="1.0"
-    xmlns:calcext="urn:org:documentfoundation:names:experimental:calc:xmlns:calcext:1.0"
     xmlns:dc="http://purl.org/dc/elements/1.1/"
     xmlns:gc="http://docs.oasis-open.org/codelist/ns/genericode/1.0/"
     xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
@@ -10,8 +9,6 @@
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
     exclude-result-prefixes="gc">
     
-    <!-- XSLT 1.0 is used, as this transformation is written to be used in LibreOffice, which uses the libxslt library. -->
-
     <xsl:output
         method="xml"
         version="1.0"
@@ -28,19 +25,25 @@
     <xsl:param
         name="sheetNameSimpleCodeList"
         select="'Values'" />
+        
+    <!-- Create a lookup key with 
+    - index: the position of the Column within the ColumnSet
+    - value: the Column element itself -->
+    <xsl:key
+        name="columnPositionAndIdKey"
+        match="ColumnSet/Column"
+        use="count(preceding-sibling::Column) + 1" />
 
     <xsl:template match="/">
-        <office:document-content
-            xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
-            xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
-            office:version="1.3">
-
+        <office:document
+            office:version="1.3"
+            office:mimetype="application/vnd.oasis.opendocument.spreadsheet">
             <office:body>
                 <office:spreadsheet>
                     <xsl:apply-templates select="gc:CodeList" />
                 </office:spreadsheet>
             </office:body>
-        </office:document-content>
+        </office:document>
     </xsl:template>
 
     <xsl:template match="gc:CodeList">
@@ -52,6 +55,9 @@
             <xsl:attribute name="table:name">
                 <xsl:value-of select="$sheetNameSimpleCodeList" />
             </xsl:attribute>
+
+            <table:table-column table:number-columns-repeated="{count(ColumnSet/Column)}" />
+            
             <!-- Write header row with id-attributes of the columns as values. -->
             <table:table-row>
                 <xsl:for-each select="ColumnSet/Column">
@@ -73,21 +79,15 @@
                         <xsl:variable
                             name="valuePosition"
                             select="position()" />
-                        <!-- Find the id attribute of the column that is in the same position as the current value -->
-                        <xsl:variable
-                            name="correspondingColumnId"
-                            select="../../../ColumnSet/Column[position() = $valuePosition]/@Id" />
                         <xsl:variable
                             name="valueColumnRef"
                             select="@ColumnRef" />
                         <!-- Only work with genericode files in which the order of the values is the same as the order of the declared columns.
-                        If this test would not be present and the order was different, the content of the cell would be placed in the wrong column.
+                        If this test would not be present and the order was different, the contents of the cell would be placed in the wrong column.
                         The transformation is terminated, no attempt is done to place the value in the correct column. -->
                         <xsl:choose>
-                            <xsl:when test="$valueColumnRef = $correspondingColumnId">
-                                <table:table-cell
-                                    office:value-type="string"
-                                    calcext:value-type="string">
+                            <xsl:when test="$valueColumnRef = key('columnPositionAndIdKey', $valuePosition)/@Id">
+                                <table:table-cell office:value-type="string">
                                     <text:p>
                                         <xsl:value-of select="SimpleValue" />
                                     </text:p>
@@ -112,6 +112,7 @@
             <xsl:attribute name="table:name">
                 <xsl:value-of select="$sheetNameIdentification" />
             </xsl:attribute>
+            <table:table-column table:number-columns-repeated="3" />
             <xsl:for-each select="*">
                 <xsl:choose>
                     <xsl:when test="count(*) = 0">
@@ -185,7 +186,7 @@
             <xsl:attribute name="table:name">
                 <xsl:value-of select="$sheetNameColumnSet" />
             </xsl:attribute>
-
+            <table:table-column table:number-columns-repeated="9" />
             <!-- Header row -->
             <table:table-row>
                 <table:table-cell>
