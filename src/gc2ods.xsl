@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xsl:stylesheet
     version="1.0"
-    xmlns:dc="http://purl.org/dc/elements/1.1/"
+    xmlns:dcterms="http://purl.org/dc/terms/"
     xmlns:gc="http://docs.oasis-open.org/codelist/ns/genericode/1.0/"
     xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
     xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
@@ -16,13 +16,16 @@
         indent="yes" />
         
     <!-- This stylesheet will create sheets with the following names -->
-    <xsl:param
+    <xsl:variable
         name="sheetNameIdentification"
         select="'Identification'" />
-    <xsl:param
+    <xsl:variable
+        name="sheetNameMetadata"
+        select="'Additional code list metadata'" />
+    <xsl:variable
         name="sheetNameColumnSet"
         select="'Columns'" />
-    <xsl:param
+    <xsl:variable
         name="sheetNameSimpleCodeList"
         select="'Values'" />
         
@@ -34,33 +37,202 @@
         match="ColumnSet/Column"
         use="count(preceding-sibling::Column) + 1" />
 
-    <xsl:template match="/">
+    <xsl:template match="/gc:CodeList">
         <office:document
             office:version="1.3"
             office:mimetype="application/vnd.oasis.opendocument.spreadsheet">
+            
             <office:body>
                 <office:spreadsheet>
-                    <xsl:apply-templates select="gc:CodeList" />
+                    <xsl:apply-templates select="Identification" />
+                    <xsl:apply-templates select="Annotation/Description" />
+                    <xsl:apply-templates select="ColumnSet" />
+                    <xsl:apply-templates select="SimpleCodeList" />
                 </office:spreadsheet>
+
             </office:body>
         </office:document>
     </xsl:template>
 
-    <xsl:template match="gc:CodeList">
-        <xsl:apply-templates select="Identification" />
+    <xsl:template match="Identification">
+        <table:table>
+            <xsl:attribute name="table:name">
+                <xsl:value-of select="$sheetNameIdentification" />
+            </xsl:attribute>
+            <table:table-column table:number-columns-repeated="2" />
+            <xsl:for-each select="*">
+                <xsl:choose>
+                    <xsl:when test="count(*) = 0">
+                        <xsl:call-template name="outputMetadataElementRow">
+                            <xsl:with-param
+                                name="nameInRow"
+                                select="name()" />
+                        </xsl:call-template>
+                    </xsl:when>
+                    <xsl:when test="count(*) &gt; 0">
+                        <!-- Store the name in a variable, as using
+                        concat(../name(), '/', name())
+                        for the parameter gives the following error with libxslt
+                        XSLT-with-param: Failed to compile select expression 'concat(../name(), '/', name())' -->
+                        <xsl:variable
+                            name="elementName"
+                            select="name()" />
+                        <xsl:for-each select="*">
+                            <!-- Only Identification/Agency has children, and those children are leaf elements,
+                            so no need to go deeper. Otherwise, a better solution would be to create a 
+                            recursive template. -->
+                            <xsl:call-template name="outputMetadataElementRow">
+                                <xsl:with-param
+                                    name="nameInRow"
+                                    select="concat($elementName, '/', name())" />
+                            </xsl:call-template>
+                        </xsl:for-each>
+                    </xsl:when>
+                </xsl:choose>
+            </xsl:for-each>
+        </table:table>
+    </xsl:template>
 
-        <xsl:apply-templates select="ColumnSet" />
+    <xsl:template name="outputMetadataElementRow">
+        <xsl:param name="nameInRow" />
+        <table:table-row>
+            <table:table-cell office:value-type="string">
+                <text:p>
+                    <xsl:value-of select="$nameInRow" />
+                    <xsl:if test="count(@*) &gt; 0">
+                        <!-- Whitespace to separate element name from attributes -->
+                        <xsl:value-of select="' '" />
+                        <xsl:call-template name="stringJoinAttributes" />
+                    </xsl:if>
+                </text:p>
+            </table:table-cell>
+            <table:table-cell office:value-type="string">
+                <text:p>
+                    <xsl:value-of select="text()" />
+                </text:p>
+            </table:table-cell>
+        </table:table-row>
+    </xsl:template>
 
+    <xsl:template name="stringJoinAttributes">
+        <!-- Attributes are written in the style att1=value1,att2=value2, ... 
+        Do not use double quotation marks att1="value1",att2="value2", ... 
+        as LibreOffice may turn them into curly quotation marks! -->
+        <xsl:for-each select="@*">
+            <xsl:if test="position() &gt; 1">
+                <xsl:value-of select="','" />
+            </xsl:if>
+            <xsl:value-of select="concat(name(), '=', .)" />
+        </xsl:for-each>
+    </xsl:template>
+    
+    <xsl:template match="gc:CodeList/Annotation/Description">
+        <table:table>
+            <xsl:attribute name="table:name">
+                <xsl:value-of select="$sheetNameMetadata" />
+            </xsl:attribute>
+            <table:table-column table:number-columns-repeated="2" />
+            <xsl:for-each select="dcterms:*">
+                <xsl:call-template name="outputMetadataElementRow">
+                    <xsl:with-param
+                        name="nameInRow"
+                        select="name()" />
+                </xsl:call-template>
+            </xsl:for-each>
+        </table:table>
+    </xsl:template>
+
+    <xsl:template match="ColumnSet">
+        <table:table>
+            <xsl:attribute name="table:name">
+                <xsl:value-of select="$sheetNameColumnSet" />
+            </xsl:attribute>
+            <table:table-column table:number-columns-repeated="6" />
+            <!-- Header row -->
+            <table:table-row>
+                <table:table-cell>
+                    <text:p>
+                        <xsl:value-of select="'@Id'" />
+                    </text:p>
+                </table:table-cell>
+                <table:table-cell>
+                    <text:p>
+                        <xsl:value-of select="'@Use'" />
+                    </text:p>
+                </table:table-cell>
+                <!-- ShortName not present although it is mandatory: is set to same as @Id in ods2gc.xsl -->
+                <table:table-cell>
+                    <text:p>
+                        <xsl:value-of select="'Data/@Type'" />
+                    </text:p>
+                </table:table-cell>
+                <table:table-cell>
+                    <text:p>
+                        <xsl:value-of select="'Data/@Lang'" />
+                    </text:p>
+                </table:table-cell>
+                <table:table-cell>
+                    <text:p>
+                        <xsl:value-of select="'Annotation/Description/dcterms:description'" />
+                    </text:p>
+                </table:table-cell>
+                <table:table-cell>
+                    <text:p>
+                        <xsl:value-of select="'Key'" />
+                    </text:p>
+                </table:table-cell>
+            </table:table-row>
+
+            <xsl:for-each select="Column">
+                <table:table-row>
+                    <table:table-cell>
+                        <text:p>
+                            <xsl:value-of select="@Id" />
+                        </text:p>
+                    </table:table-cell>
+                    <table:table-cell>
+                        <text:p>
+                            <xsl:value-of select="@Use" />
+                        </text:p>
+                    </table:table-cell>
+                    <table:table-cell>
+                        <text:p>
+                            <xsl:value-of select="Data/@Type" />
+                        </text:p>
+                    </table:table-cell>
+                    <table:table-cell>
+                        <text:p>
+                            <xsl:value-of select="Data/@Lang" />
+                        </text:p>
+                    </table:table-cell>
+                    <table:table-cell>
+                        <text:p>
+                            <xsl:value-of select="Annotation/Description/dcterms:description" />
+                        </text:p>
+                    </table:table-cell>
+                    <xsl:variable
+                        name="columnId"
+                        select="@Id" />
+                    <table:table-cell>
+                        <text:p>
+                            <xsl:value-of select="../Key[ColumnRef/@Ref = $columnId]/@Id" />
+                        </text:p>
+                    </table:table-cell>
+                </table:table-row>
+            </xsl:for-each>
+        </table:table>
+    </xsl:template>
+
+    <xsl:template match="SimpleCodeList">
         <table:table>
             <xsl:attribute name="table:name">
                 <xsl:value-of select="$sheetNameSimpleCodeList" />
             </xsl:attribute>
 
-            <table:table-column table:number-columns-repeated="{count(ColumnSet/Column)}" />
-            
             <!-- Write header row with id-attributes of the columns as values. -->
+            <table:table-column table:number-columns-repeated="{count(../ColumnSet/Column)}" />
             <table:table-row>
-                <xsl:for-each select="ColumnSet/Column">
+                <xsl:for-each select="../ColumnSet/Column">
                     <table:table-cell office:value-type="string">
                         <text:p>
                             <xsl:value-of select="@Id" />
@@ -70,7 +242,7 @@
             </table:table-row>
         
             <!-- Write the data in the following rows. -->
-            <xsl:for-each select="SimpleCodeList/Row">
+            <xsl:for-each select="Row">
                 <xsl:variable
                     name="rowPosition"
                     select="position()" />
@@ -102,190 +274,6 @@
                             </xsl:otherwise>
                         </xsl:choose>
                     </xsl:for-each>
-                </table:table-row>
-            </xsl:for-each>
-        </table:table>
-    </xsl:template>
-
-    <xsl:template match="Identification">
-        <table:table>
-            <xsl:attribute name="table:name">
-                <xsl:value-of select="$sheetNameIdentification" />
-            </xsl:attribute>
-            <table:table-column table:number-columns-repeated="3" />
-            <xsl:for-each select="*">
-                <xsl:choose>
-                    <xsl:when test="count(*) = 0">
-                        <xsl:call-template name="outputIdentificationRow">
-                            <xsl:with-param
-                                name="nameInTable"
-                                select="name()" />
-                        </xsl:call-template>
-                    </xsl:when>
-                    <xsl:when test="count(*) > 0">
-                        <!-- Store the name in a variable, as using
-                        concat(../name(), '/', name())
-                        for the parameter gives the following error with libxslt
-                        XSLT-with-param: Failed to compile select expression 'concat(../name(), '/', name())' -->
-                        <xsl:variable
-                            name="elementName"
-                            select="name()" />
-                        <xsl:for-each select="*">
-                            <!-- Only Identification/Agency has children, and those children are leaf elements,
-                            so no need to go deeper. -->
-                            <xsl:call-template name="outputIdentificationRow">
-                                <xsl:with-param
-                                    name="nameInTable"
-                                    select="concat($elementName, '/', name())" />
-                            </xsl:call-template>
-                        </xsl:for-each>
-                    </xsl:when>
-                </xsl:choose>
-            </xsl:for-each>
-        </table:table>
-    </xsl:template>
-
-    <xsl:template name="outputIdentificationRow">
-        <xsl:param name="nameInTable" />
-        <table:table-row>
-            <table:table-cell office:value-type="string">
-                <text:p>
-                    <xsl:value-of select="$nameInTable" />
-                </text:p>
-            </table:table-cell>
-            <table:table-cell office:value-type="string">
-                <text:p>
-                    <xsl:value-of select="text()" />
-                </text:p>
-            </table:table-cell>
-            <!-- Attributes, if present, are written in the third column -->
-            <table:table-cell office:value-type="string">
-                <text:p>
-                    <xsl:call-template name="string-join-attributes" />
-                </text:p>
-            </table:table-cell>
-        </table:table-row>
-    </xsl:template>
-
-    <xsl:template name="string-join-attributes">
-        <xsl:if test="count(@*) > 0">
-            <!-- Attributes are written in the style att1=value1, att2=value2, ... -->
-            <!-- With XSLT 2 or later, this could be written more simple as
-            string-join(concat(name(), '=', .), ', ') -->
-            <xsl:for-each select="@*">
-                <xsl:if test="position() > 1">
-                    <xsl:value-of select="', '" />
-                </xsl:if>
-                <xsl:value-of select="concat(name(), '=', .)" />
-            </xsl:for-each>
-        </xsl:if>
-    </xsl:template>
-
-    <xsl:template match="ColumnSet">
-        <table:table>
-            <xsl:attribute name="table:name">
-                <xsl:value-of select="$sheetNameColumnSet" />
-            </xsl:attribute>
-            <table:table-column table:number-columns-repeated="9" />
-            <!-- Header row -->
-            <table:table-row>
-                <table:table-cell>
-                    <text:p>
-                        <xsl:value-of select="'Id'" />
-                    </text:p>
-                </table:table-cell>
-                <table:table-cell>
-                    <text:p>
-                        <xsl:value-of select="'Use'" />
-                    </text:p>
-                </table:table-cell>
-                <table:table-cell>
-                    <text:p>
-                        <xsl:value-of select="'LongName (da)'" />
-                    </text:p>
-                </table:table-cell>
-                <table:table-cell>
-                    <text:p>
-                        <xsl:value-of select="'Description (da)'" />
-                    </text:p>
-                </table:table-cell>
-                <table:table-cell>
-                    <text:p>
-                        <xsl:value-of select="'LongName (en)'" />
-                    </text:p>
-                </table:table-cell>
-                <table:table-cell>
-                    <text:p>
-                        <xsl:value-of select="'Description (en)'" />
-                    </text:p>
-                </table:table-cell>
-                <table:table-cell>
-                    <text:p>
-                        <xsl:value-of select="'Data type'" />
-                    </text:p>
-                </table:table-cell>
-                <table:table-cell>
-                    <text:p>
-                        <xsl:value-of select="'Language of data'" />
-                    </text:p>
-                </table:table-cell>
-                <table:table-cell>
-                    <text:p>
-                        <xsl:value-of select="'Key'" />
-                    </text:p>
-                </table:table-cell>
-            </table:table-row>
-
-            <xsl:for-each select="Column">
-                <table:table-row>
-                    <table:table-cell>
-                        <text:p>
-                            <xsl:value-of select="@Id" />
-                        </text:p>
-                    </table:table-cell>
-                    <table:table-cell>
-                        <text:p>
-                            <xsl:value-of select="@Use" />
-                        </text:p>
-                    </table:table-cell>
-                    <table:table-cell>
-                        <text:p>
-                            <xsl:value-of select="LongName[@xml:lang = 'da']" />
-                        </text:p>
-                    </table:table-cell>
-                    <table:table-cell>
-                        <text:p>
-                            <xsl:value-of select="Annotation/Description/dc:description[@xml:lang = 'da']" />
-                        </text:p>
-                    </table:table-cell>
-                    <table:table-cell>
-                        <text:p>
-                            <xsl:value-of select="LongName[@xml:lang = 'en']" />
-                        </text:p>
-                    </table:table-cell>
-                    <table:table-cell>
-                        <text:p>
-                            <xsl:value-of select="Annotation/Description/dc:description[@xml:lang = 'en']" />
-                        </text:p>
-                    </table:table-cell>
-                    <table:table-cell>
-                        <text:p>
-                            <xsl:value-of select="Data/@Type" />
-                        </text:p>
-                    </table:table-cell>
-                    <table:table-cell>
-                        <text:p>
-                            <xsl:value-of select="Data/@Lang" />
-                        </text:p>
-                    </table:table-cell>
-                    <xsl:variable
-                        name="columnId"
-                        select="@Id" />
-                    <table:table-cell>
-                        <text:p>
-                            <xsl:value-of select="../Key[ColumnRef/@Ref = $columnId]/@Id" />
-                        </text:p>
-                    </table:table-cell>
                 </table:table-row>
             </xsl:for-each>
         </table:table>

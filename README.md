@@ -57,19 +57,83 @@ Prerequisite: LibreOffice is installed, the minimum version needed is 24.2.5[^4]
 
 ### Editing genericode files
 
-The spreadsheet contains three sheets:
+The spreadsheet contains four sheets:
 
-1. Identification: displays the contents of `/CodeList/Identification`
-2. Columns: displays the contents of `/CodeList/ColumnSet`
-3. Values: displays the contents of `/CodeList/SimpleCodeList`
+1. Identification: displays the contents of `/gc:CodeList/Identification`
+2. Additional code list metadata: displays the contents of `/gc:CodeList/Annotation/Description`
+3. Columns: displays the contents of `/gc:CodeList/ColumnSet`
+4. Values: displays the contents of `/gc:CodeList/SimpleCodeList`
+
+### Profile of genericode
+
+Not all possibilities in the genericode standard are supported, and selected additional metadata element on the code list and its columns are supported.
 
 Conventions and limitations:
 
+- For sheets Identification and Additional code list metadata: the first column contains the element name and any attributes in the format `ElementName att1=value1,att2=value2`, e.g. `AlternateFormatLocationUri MimeType=text/csv` or `dcterms:description xml:lang`. Make sure not to have a space after the element name if the element should not have any attributes.
+- The Qualified DC XML Schemas are used for additional metadata, see also https://www.dublincore.org/schemas/xmls/, the properties from the `http://purl.org/dc/terms/` namespace are used.
+- For the code list itself, all `dcterms` properties are supported in `/gc:CodeList/Annotation/Description`, and `xml:lang` is  supported.
 - The `Id` attribute and the `ShortName` of a column are equal. If a column has another value as `ShortName` than the `Id` attribute in the genericode file, it will be replaced with the value of the `Id` attribute when the genericode file is saved.
-- The `Id` attribute is used for the column headers in sheet Values.
-- Undefined values must be encoded as an empty `Value` element.
+- For columns, only `@Id`, `@Use`, `Data/@Type`, `Data/@Lang` and `Annotation/Description/dcterms:description` are supported. `ShortName` is supported as well but is always set to the same value as the `Id` attribute and therefore not visible in the spreadsheet. `xml:lang` is not supported.
+- The `Id` attributes of the columns are used for the column headers in sheet Values.
+- An undefined value is encoded as an empty `Value` element.
 - The order of the `Value` elements must be the same as the order of the `Column` elements, if not, the transformation will be terminated and LibreOffice will display an error.
-- The Simple Dublin Core XML schema is used to encode the descriptions of the columns in the code list, see also https://www.dublincore.org/schemas/xmls/.
+
+An example:
+
+```xml
+<gc:CodeList xmlns:gc="http://docs.oasis-open.org/codelist/ns/genericode/1.0/" xmlns:dcterms="http://purl.org/dc/terms/">
+  <Annotation>
+    <Description>
+      <dcterms:description>Description of my code list.</dcterms:description>
+      <dcterms:language>en</dcterms:language>
+      <dcterms:license>https://path/to/license</dcterms:license>
+    </Description>
+  </Annotation>
+  <Identification>
+    <ShortName>mytype</ShortName>
+    <Version>1.0.0</Version>
+    <CanonicalUri>urn:uuid:08b6a53e-3d1b-42da-a6fb-4741a9ba5828</CanonicalUri>
+    <CanonicalVersionUri>urn:uuid:ceb73150-b5c4-4d61-8b18-ccdb02e1acde</CanonicalVersionUri>
+    <LocationUri>https://path/to/v1.0.0.mytype.gc</LocationUri>
+    <AlternateFormatLocationUri MimeType="text/csv">https://path/to/v1.0.0.mytype.csv</AlternateFormatLocationUri>
+    <AlternateFormatLocationUri MimeType="text/html">https://path/to/v1.0.0.mytype.html</AlternateFormatLocationUri>
+    <Agency>
+      <LongName>My organisation</LongName>
+    </Agency>
+  </Identification>
+  <ColumnSet>
+    <Column Id="code" Use="required">
+      <Annotation>
+        <Description>
+          <dcterms:description>allowed value in data</dcterms:description>
+        </Description>
+      </Annotation>
+      <ShortName>code</ShortName>
+      <Data Type="string"/>
+    </Column>
+    <Column Id="name" Use="required">
+      <Annotation>
+        <Description>
+          <dcterms:description>word or words that the thing is known by</dcterms:description>
+        </Description>
+      </Annotation>
+      <ShortName>name</ShortName>
+      <Data Type="string" Lang="en"/>
+    </Column>
+    <Key Id="key_code">
+      <ShortName>key_code</ShortName>
+      <ColumnRef Ref="code"/>
+    </Key>
+    <Key Id="key_name">
+      <ShortName>key_name</ShortName>
+      <ColumnRef Ref="name"/>
+    </Key>
+  </ColumnSet>
+  <SimpleCodeList/>
+</gc:CodeList>
+
+```
 
 ## Development
 
