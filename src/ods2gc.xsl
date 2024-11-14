@@ -17,7 +17,7 @@
         encoding="UTF-8"
         indent="yes" />
         
-    <!-- This stylesheet assumes sheets with the following names -->
+    <!-- This stylesheet assumes sheets with the following names, if 4 sheets are present in total. -->
     <xsl:variable
         name="sheetNameIdentification"
         select="'Identification'" />
@@ -32,20 +32,38 @@
         select="'Values'" />
 
     <xsl:template match="/">
-        <gc:CodeList xmlns:gc="http://docs.oasis-open.org/codelist/ns/genericode/1.0/">
-            <xsl:apply-templates
-                select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameMetadata]"
-                mode="codeListMetadata" />
-            <xsl:apply-templates
-                select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameIdentification]"
-                mode="identification" />
-            <xsl:apply-templates
-                select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameColumnSet]"
-                mode="columnset" />
-            <xsl:apply-templates
-                select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameSimpleCodeList]"
-                mode="values" />
-        </gc:CodeList>
+        <xsl:choose>
+            <xsl:when test="count(office:document/office:body/office:spreadsheet/table:table) = 4">
+                <!-- Create a file with root element gc:CodeList, which can be validated against the genericode XML schema -->
+                <gc:CodeList>
+                    <xsl:apply-templates
+                        select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameMetadata]"
+                        mode="codeListMetadata" />
+                    <xsl:apply-templates
+                        select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameIdentification]"
+                        mode="identification" />
+                    <xsl:apply-templates
+                        select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameColumnSet]"
+                        mode="columnset" />
+                    <xsl:apply-templates
+                        select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameSimpleCodeList]"
+                        mode="values" />
+                </gc:CodeList>
+            </xsl:when>
+            <xsl:when test="count(office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameSimpleCodeList]) = 1">
+                <!-- Create a file with root element SimpleCodeList, which cannot be validated against the genericode XML schema, 
+                but can be inserted in another document containing a gc:CodeList root element.
+                The sheet must be called Values, otherwise the key cannot be created. -->
+                <xsl:apply-templates
+                    select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameSimpleCodeList]"
+                    mode="values" />
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:message terminate="yes">
+                    <xsl:value-of select="'This spreadsheet contains does not live up to the conventions regarding the structure of a genericode document represented in a spreadsheet'" />
+                </xsl:message>
+            </xsl:otherwise>
+        </xsl:choose>
     </xsl:template>
     
     <!-- Use the mode attribute and not a reference to a $sheetNameXXX variable in the match attribute,
