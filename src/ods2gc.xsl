@@ -17,7 +17,7 @@
         encoding="UTF-8"
         indent="yes" />
         
-    <!-- This stylesheet assumes sheets with the following names -->
+    <!-- This stylesheet assumes sheets with the following names, if 4 sheets are present in total. -->
     <xsl:variable
         name="sheetNameIdentification"
         select="'Identification'" />
@@ -30,34 +30,40 @@
     <xsl:variable
         name="sheetNameSimpleCodeList"
         select="'Values'" />
-        
-    <!-- Create a lookup key of the first table row in the Values sheet with 
-    - index: the position of the cell within the table row
-    - value: the table cell
-    The position() function cannot be used in this case, as it will always return 1.
-    In XSLT 1.0 stylesheets, it is an error for the value of either the use attribute or the match attribute to contain a variable reference,
-    see also https://www.w3.org/TR/xslt-10/#key,
-    therefore, the name of the sheet is hardcoded -->
-    <xsl:key
-        name="valuesTableColumnPositionKey"
-        match="table:table[@table:name = 'Values']/table:table-row[position() = 1]/table:table-cell"
-        use="count(preceding-sibling::table:table-cell) + 1" />
 
     <xsl:template match="/">
-        <gc:CodeList xmlns:gc="http://docs.oasis-open.org/codelist/ns/genericode/1.0/">
-            <xsl:apply-templates
-                select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameMetadata]"
-                mode="codeListMetadata" />
-            <xsl:apply-templates
-                select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameIdentification]"
-                mode="identification" />
-            <xsl:apply-templates
-                select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameColumnSet]"
-                mode="columnset" />
-            <xsl:apply-templates
-                select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameSimpleCodeList]"
-                mode="values" />
-        </gc:CodeList>
+        <xsl:choose>
+            <xsl:when test="count(office:document/office:body/office:spreadsheet/table:table) = 4">
+                <!-- Create a file with root element gc:CodeList, which can be validated against the genericode XML schema -->
+                <gc:CodeList>
+                    <xsl:apply-templates
+                        select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameMetadata]"
+                        mode="codeListMetadata" />
+                    <xsl:apply-templates
+                        select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameIdentification]"
+                        mode="identification" />
+                    <xsl:apply-templates
+                        select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameColumnSet]"
+                        mode="columnset" />
+                    <xsl:apply-templates
+                        select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameSimpleCodeList]"
+                        mode="values" />
+                </gc:CodeList>
+            </xsl:when>
+            <xsl:when test="count(office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameSimpleCodeList]) = 1">
+                <!-- Create a file with root element SimpleCodeList, which cannot be validated against the genericode XML schema, 
+                but can be inserted in another document containing a gc:CodeList root element.
+                The sheet must be called Values, otherwise the key cannot be created. -->
+                <xsl:apply-templates
+                    select="office:document/office:body/office:spreadsheet/table:table[@table:name = $sheetNameSimpleCodeList]"
+                    mode="values" />
+            </xsl:when>
+            <xsl:otherwise>
+                <xsl:message terminate="yes">
+                    <xsl:value-of select="'This spreadsheet contains does not live up to the conventions regarding the structure of a genericode document represented in a spreadsheet'" />
+                </xsl:message>
+            </xsl:otherwise>
+        </xsl:choose>
     </xsl:template>
     
     <!-- Use the mode attribute and not a reference to a $sheetNameXXX variable in the match attribute,
@@ -67,19 +73,21 @@
         match="table:table"
         mode="codeListMetadata">
         <!-- Do not convert if sheet does not contain text -->
-        <xsl:if test="count(table:table-row/table:table-cell/text:p) &gt; 0">
+        <xsl:if test="count(table:table-row/table:table-cell/text:p) > 0">
             <Annotation>
                 <Description>
-                    <xsl:for-each select="table:table-row">
-                        <xsl:call-template name="convertTableRowToXmlElement" />
-                    </xsl:for-each>
+                    <xsl:apply-templates
+                        select="table:table-row"
+                        mode="convertTableRowToXmlElement" />
                 </Description>
             </Annotation>
         </xsl:if>
     </xsl:template>
 
-    <xsl:template name="convertTableRowToXmlElement">
-        <xsl:if test="count(table:table-cell/@table:number-columns-repeated) &gt; 0">
+    <xsl:template
+        match="table:table-row"
+        mode="convertTableRowToXmlElement">
+        <xsl:if test="count(table:table-cell/@table:number-columns-repeated) > 0">
             <xsl:message terminate="yes">
                 <xsl:text>This stylesheet does not take into account adjacent cells with the same content in sheets </xsl:text>
                 <xsl:value-of select="$sheetNameIdentification" />
@@ -88,19 +96,19 @@
                 <xsl:text>.</xsl:text>
             </xsl:message>
         </xsl:if>
+        <!-- Assume that the first cell contains only one paragraph -->
         <xsl:variable
             name="textFirstCell"
-            select="table:table-cell[position() = 1]/text:p" />
-        <xsl:variable
-            name="textSecondCell"
-            select="table:table-cell[position() = 2]/text:p" />
+            select="table:table-cell[1]/text:p[1]" />
         <xsl:choose>
             <!-- no attributes; no child element, e.g. Version -->
             <xsl:when test="not(contains($textFirstCell, ' ')) and not(contains($textFirstCell, '/'))">
                 <!-- Curly brackets are needed in the specification of the name of the element!
                 They inform the XSLT processor that the contents need to be treated as XPath. -->
                 <xsl:element name="{$textFirstCell}">
-                    <xsl:value-of select="$textSecondCell" />
+                    <xsl:apply-templates
+                        select="table:table-cell[2]"
+                        mode="joinTableCellParagraphs" />
                 </xsl:element>
             </xsl:when>
             <!-- attributes; no child element, e.g. AlternateFormatLocationUri MimeType=text/csv -->
@@ -112,13 +120,17 @@
                             name="attributestring"
                             select="substring-after($textFirstCell, ' ')" />
                     </xsl:call-template>
-                    <xsl:value-of select="$textSecondCell" />
+                    <xsl:apply-templates
+                        select="table:table-cell[2]"
+                        mode="joinTableCellParagraphs" />
                 </xsl:element>
             </xsl:when>
             <!-- no attributes; child element, e.g. Agency/LongName -->
             <xsl:when test="not(contains($textFirstCell, ' ')) and contains($textFirstCell, '/')">
                 <xsl:element name="{substring-after($textFirstCell, '/')}">
-                    <xsl:value-of select="$textSecondCell" />
+                    <xsl:apply-templates
+                        select="table:table-cell[2]"
+                        mode="joinTableCellParagraphs" />
                 </xsl:element>
             </xsl:when>
             <!-- attributes; child element, e.g. Agency/LongName xml:lang=da -->
@@ -130,7 +142,9 @@
                             name="attributestring"
                             select="substring-after($textFirstCell, ' ')" />
                     </xsl:call-template>
-                    <xsl:value-of select="$textSecondCell" />
+                    <xsl:apply-templates
+                        select="table:table-cell[2]"
+                        mode="joinTableCellParagraphs" />
                 </xsl:element>
             </xsl:when>
         </xsl:choose>
@@ -140,21 +154,20 @@
         match="table:table"
         mode="identification">
         <Identification>
-            <xsl:for-each select="table:table-row[not(starts-with(table:table-cell[position() = 1]/text:p, 'Agency/'))]">
-                <xsl:call-template name="convertTableRowToXmlElement" />
-            </xsl:for-each>
+            <xsl:apply-templates
+                select="table:table-row[not(starts-with(table:table-cell[position() = 1]/text:p, 'Agency/'))]"
+                mode="convertTableRowToXmlElement" />
             <Agency>
-                <xsl:for-each select="table:table-row[starts-with(table:table-cell[position() = 1]/text:p, 'Agency/')]">
-                    <xsl:call-template name="convertTableRowToXmlElement" />
-                </xsl:for-each>
+                <xsl:apply-templates
+                    select="table:table-row[starts-with(table:table-cell[position() = 1]/text:p, 'Agency/')]"
+                    mode="convertTableRowToXmlElement" />
             </Agency>
         </Identification>
     </xsl:template>
 
     <xsl:template name="tokenizeAttributestringAndCreateAttributes">
-        <xsl:param
-            name="attributestring" />
-        <xsl:if test="string-length($attributestring) &gt; 0">
+        <xsl:param name="attributestring" />
+        <xsl:if test="string-length($attributestring) > 0">
             <xsl:for-each select="str:tokenize($attributestring, ',')">
                 <xsl:attribute name="{substring-before(., '=')}">
                     <xsl:value-of select="substring-after(., '=')" />
@@ -187,8 +200,8 @@
             select="count(table:table-row[position() = 1]/table:table-cell[text:p/text() = 'Key']/preceding-sibling::table:table-cell) + 1" />
 
         <ColumnSet>
-            <xsl:for-each select="table:table-row[position() &gt; 1]">
-                <xsl:if test="count(table:table-cell/@table:number-columns-repeated) &gt; 0">
+            <xsl:for-each select="table:table-row[position() > 1]">
+                <xsl:if test="count(table:table-cell/@table:number-columns-repeated) > 0">
                     <xsl:message terminate="yes">
                         <xsl:text>This stylesheet does not take into account adjacent cells with the same content in sheet </xsl:text>
                         <xsl:value-of select="$sheetNameColumnSet" />
@@ -218,7 +231,7 @@
                         <xsl:attribute name="Type">
                             <xsl:value-of select="table:table-cell[position() = $positionDataType]/text:p" />
                         </xsl:attribute>
-                        <xsl:if test="string-length(table:table-cell[position() = $positionDataLang]/text:p) &gt; 0">
+                        <xsl:if test="string-length(table:table-cell[position() = $positionDataLang]/text:p) > 0">
                             <xsl:attribute name="Lang">
                                 <xsl:value-of select="table:table-cell[position() = $positionDataLang]/text:p" />
                             </xsl:attribute>
@@ -227,8 +240,8 @@
                 </Column>
             </xsl:for-each>
 
-            <xsl:for-each select="table:table-row[position() &gt; 1]">
-                <xsl:if test="string-length(table:table-cell[position() = $positionKey]/text:p) &gt; 0">
+            <xsl:for-each select="table:table-row[position() > 1]">
+                <xsl:if test="string-length(table:table-cell[position() = $positionKey]/text:p) > 0">
                     <Key>
                         <xsl:attribute name="Id">
                             <xsl:value-of select="table:table-cell[position() = $positionKey]/text:p" />
@@ -246,6 +259,18 @@
             </xsl:for-each>
         </ColumnSet>
     </xsl:template>
+    
+    <!-- Create a lookup key of the first table row in the Values sheet with 
+    - index: the position of the cell within the table row
+    - value: the table cell
+    The position() function cannot be used in this case, as it will always return 1.
+    In XSLT 1.0 stylesheets, it is an error for the value of either the use attribute or the match attribute to contain a variable reference,
+    see also https://www.w3.org/TR/xslt-10/#key,
+    therefore, the name of the sheet is hardcoded -->
+    <xsl:key
+        name="valuesTableColumnPositionKey"
+        match="table:table[@table:name = 'Values']/table:table-row[position() = 1]/table:table-cell"
+        use="count(preceding-sibling::table:table-cell) + 1" />
 
     <xsl:template
         match="table:table"
@@ -253,12 +278,14 @@
         <!-- The header row is used to create a lookup key, see above;
         process the actual data in the rest of the rows -->
         <SimpleCodeList>
-            <xsl:for-each select="table:table-row[position() &gt; 1]">
+            <xsl:for-each select="table:table-row[position() > 1]">
                 <!-- Do not take into account empty rows (rows with only whitespace will be converted though) -->
-                <xsl:if test="count(table:table-cell/text:p) &gt; 0">
+                <xsl:if test="count(table:table-cell/text:p) > 0">
                     <Row>
                         <xsl:for-each select="table:table-cell">
-                            <xsl:call-template name="writeValue">
+                            <xsl:apply-templates
+                                select="."
+                                mode="writeValue">
                                 <!-- Default value of table:number-columns-repeated is 1 according to the
                                 OpenDocument Format specification, see also
                                 https://docs.oasis-open.org/office/OpenDocument/v1.3/os/part3-schema/OpenDocument-v1.3-os-part3-schema.html#__RefHeading__1418526_253892949 -->
@@ -275,7 +302,7 @@
                                         </xsl:otherwise>
                                     </xsl:choose>
                                 </xsl:with-param>
-                            </xsl:call-template>
+                            </xsl:apply-templates>
                         </xsl:for-each>
                     </Row>
                 </xsl:if>
@@ -283,7 +310,9 @@
         </SimpleCodeList>
     </xsl:template>
 
-    <xsl:template name="writeValue">
+    <xsl:template
+        match="table:table-cell"
+        mode="writeValue">
         <!-- number of the column the value is located in the spreadsheet visible in the GUI (column A is 1, column B is 2, etc.)  -->
         <xsl:param name="columnPosition" />
         <!-- number of times that the value is repeated in the successive columns  -->
@@ -298,23 +327,74 @@
             </xsl:attribute>
             <!-- In this transformation, an undefined value (an empty string in the cell) (only applicable in optional columns)
             is always written as a Value element that does not contain a SimpleValue element. -->
-            <xsl:if test="string-length(normalize-space(text:p)) &gt; 0">
+            <xsl:if test="string-length(normalize-space(text:p)) > 0 and not(@office:value-type = 'void')">
                 <SimpleValue>
-                    <xsl:value-of select="text:p" />
+                    <!-- See https://docs.oasis-open.org/office/OpenDocument/v1.3/os/part3-schema/OpenDocument-v1.3-os-part3-schema.html#attribute-office_value-type -->
+                    <xsl:choose>
+                        <xsl:when test="@office:value-type = 'boolean'">
+                            <xsl:value-of select="@office:boolean-value" />
+                        </xsl:when>
+                        <xsl:when test="@office:value-type = 'date'">
+                            <xsl:value-of select="@office:date-value" />
+                        </xsl:when>
+                        <xsl:when test="@office:value-type = 'float' or @office:value-type = 'percentage'">
+                            <xsl:value-of select="@office:value" />
+                        </xsl:when>
+                        <xsl:when test="@office:value-type = 'time'">
+                            <xsl:value-of select="@office:time-value" />
+                        </xsl:when>
+                        <xsl:otherwise>
+                            <!-- E.g. when @office:value-type = 'string' -->
+                            <xsl:apply-templates
+                                select="."
+                                mode="joinTableCellParagraphs" />
+                        </xsl:otherwise>
+                    </xsl:choose>
                 </SimpleValue>
             </xsl:if>
         </Value>
-        <xsl:if test="$noOfRepetitions &gt; 1">
+        <xsl:if test="$noOfRepetitions > 1">
             <!-- This is a recursive template -->
-            <xsl:call-template name="writeValue">
+            <xsl:apply-templates
+                select="."
+                mode="writeValue">
                 <xsl:with-param
                     name="columnPosition"
                     select="$columnPosition + 1" />
                 <xsl:with-param
                     name="noOfRepetitions"
                     select="$noOfRepetitions - 1" />
-            </xsl:call-template>
+            </xsl:apply-templates>
         </xsl:if>
+    </xsl:template>
+
+    <!-- A cell contains several paragraphs if the user has inserted a line break in it,
+    see also https://help.libreoffice.org/latest/en-US/text/shared/guide/breaking_lines.html
+    (tested with LibreOffice 24.8.0.3).
+    This template is called for cells that potentially contain several paragraphs. -->
+    <xsl:template
+        match="table:table-cell"
+        mode="joinTableCellParagraphs">
+        <xsl:for-each select="text:p">
+            <!-- Autoformatting of links is not an issue. The input will look like
+            <table:table-cell
+                office:value-type="string"
+                calcext:value-type="string">
+                <text:p>
+                    <text:a
+                        xlink:href="http://example.org/"
+                        xlink:type="simple">http://example.org</text:a>
+                </text:p>
+            </table:table-cell>
+            By using select=".", http://example.org is the value, as all text is extracted from the source tree.
+            Note: if select="text()" would be used, the value would be empty, because it would only take text directly in <text:p>.
+            -->
+            <xsl:value-of select="." />
+            <!-- Add a new line if more paragraphs follow -->
+            <xsl:if test="not(position()=last())">
+                <xsl:value-of select="'&#10;'" />
+            </xsl:if>
+        </xsl:for-each>
     </xsl:template>
 
 </xsl:stylesheet>

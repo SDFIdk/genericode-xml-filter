@@ -2,13 +2,17 @@
 <xsl:stylesheet
     version="1.0"
     xmlns:dcterms="http://purl.org/dc/terms/"
+    xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
     xmlns:gc="http://docs.oasis-open.org/codelist/ns/genericode/1.0/"
     xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+    xmlns:str="http://exslt.org/strings"
+    xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
     xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
     xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-    exclude-result-prefixes="gc">
-    
+    exclude-result-prefixes="gc dcterms"
+    extension-element-prefixes="str">
+
     <xsl:output
         method="xml"
         version="1.0"
@@ -41,7 +45,36 @@
         <office:document
             office:version="1.3"
             office:mimetype="application/vnd.oasis.opendocument.spreadsheet">
-            
+
+            <office:automatic-styles>
+                <style:style
+                    style:name="columnnormal"
+                    style:family="table-column">
+                    <style:table-column-properties style:column-width="2.5cm" />
+                </style:style>
+                <style:style
+                    style:name="columnwide"
+                    style:family="table-column">
+                    <style:table-column-properties style:column-width="10cm" />
+                </style:style>
+                <style:style
+                    style:name="columnverywide"
+                    style:family="table-column">
+                    <style:table-column-properties style:column-width="25cm" />
+                </style:style>
+                <style:style
+                    style:name="cellheader"
+                    style:family="table-cell">
+                    <style:text-properties fo:font-weight="bold" />
+                </style:style>
+                <style:style
+                    style:name="cellvalue"
+                    style:family="table-cell">
+                    <style:table-cell-properties fo:wrap-option="wrap" />
+                    <style:text-properties fo:font-weight="normal" />
+                </style:style>
+            </office:automatic-styles>
+
             <office:body>
                 <office:spreadsheet>
                     <xsl:apply-templates select="Identification" />
@@ -59,7 +92,12 @@
             <xsl:attribute name="table:name">
                 <xsl:value-of select="$sheetNameIdentification" />
             </xsl:attribute>
-            <table:table-column table:number-columns-repeated="2" />
+            <table:table-column
+                table:style-name="columnwide"
+                table:default-cell-style-name="cellheader" />
+            <table:table-column
+                table:style-name="columnverywide"
+                table:default-cell-style-name="cellvalue" />
             <xsl:for-each select="*">
                 <xsl:choose>
                     <xsl:when test="count(*) = 0">
@@ -69,7 +107,7 @@
                                 select="name()" />
                         </xsl:call-template>
                     </xsl:when>
-                    <xsl:when test="count(*) &gt; 0">
+                    <xsl:when test="count(*) > 0">
                         <!-- Store the name in a variable, as using
                         concat(../name(), '/', name())
                         for the parameter gives the following error with libxslt
@@ -99,7 +137,7 @@
             <table:table-cell office:value-type="string">
                 <text:p>
                     <xsl:value-of select="$nameInRow" />
-                    <xsl:if test="count(@*) &gt; 0">
+                    <xsl:if test="count(@*) > 0">
                         <!-- Whitespace to separate element name from attributes -->
                         <xsl:value-of select="' '" />
                         <xsl:call-template name="stringJoinAttributes" />
@@ -107,9 +145,9 @@
                 </text:p>
             </table:table-cell>
             <table:table-cell office:value-type="string">
-                <text:p>
-                    <xsl:value-of select="text()" />
-                </text:p>
+                <xsl:call-template name="convertElementTextToParagraphs">
+                    <xsl:with-param name="element" select="." />
+                </xsl:call-template>
             </table:table-cell>
         </table:table-row>
     </xsl:template>
@@ -119,19 +157,24 @@
         Do not use double quotation marks att1="value1",att2="value2", ... 
         as LibreOffice may turn them into curly quotation marks! -->
         <xsl:for-each select="@*">
-            <xsl:if test="position() &gt; 1">
+            <xsl:if test="position() > 1">
                 <xsl:value-of select="','" />
             </xsl:if>
             <xsl:value-of select="concat(name(), '=', .)" />
         </xsl:for-each>
     </xsl:template>
-    
+
     <xsl:template match="gc:CodeList/Annotation/Description">
         <table:table>
             <xsl:attribute name="table:name">
                 <xsl:value-of select="$sheetNameMetadata" />
             </xsl:attribute>
-            <table:table-column table:number-columns-repeated="2" />
+            <table:table-column
+                table:style-name="columnwide"
+                table:default-cell-style-name="cellheader" />
+            <table:table-column
+                table:style-name="columnverywide"
+                table:default-cell-style-name="cellvalue" />
             <xsl:for-each select="dcterms:*">
                 <xsl:call-template name="outputMetadataElementRow">
                     <xsl:with-param
@@ -147,36 +190,45 @@
             <xsl:attribute name="table:name">
                 <xsl:value-of select="$sheetNameColumnSet" />
             </xsl:attribute>
-            <table:table-column table:number-columns-repeated="6" />
+            <table:table-column
+                table:number-columns-repeated="4"
+                table:style-name="columnnormal"
+                table:default-cell-style-name="cellvalue" />
+            <table:table-column
+                table:style-name="columnverywide"
+                table:default-cell-style-name="cellvalue" />
+            <table:table-column
+                table:style-name="columnnormal"
+                table:default-cell-style-name="cellvalue" />
             <!-- Header row -->
             <table:table-row>
-                <table:table-cell>
+                <table:table-cell table:style-name="cellheader">
                     <text:p>
                         <xsl:value-of select="'@Id'" />
                     </text:p>
                 </table:table-cell>
-                <table:table-cell>
+                <table:table-cell table:style-name="cellheader">
                     <text:p>
                         <xsl:value-of select="'@Use'" />
                     </text:p>
                 </table:table-cell>
                 <!-- ShortName not present although it is mandatory: is set to same as @Id in ods2gc.xsl -->
-                <table:table-cell>
+                <table:table-cell table:style-name="cellheader">
                     <text:p>
                         <xsl:value-of select="'Data/@Type'" />
                     </text:p>
                 </table:table-cell>
-                <table:table-cell>
+                <table:table-cell table:style-name="cellheader">
                     <text:p>
                         <xsl:value-of select="'Data/@Lang'" />
                     </text:p>
                 </table:table-cell>
-                <table:table-cell>
+                <table:table-cell table:style-name="cellheader">
                     <text:p>
                         <xsl:value-of select="'Annotation/Description/dcterms:description'" />
                     </text:p>
                 </table:table-cell>
-                <table:table-cell>
+                <table:table-cell table:style-name="cellheader">
                     <text:p>
                         <xsl:value-of select="'Key'" />
                     </text:p>
@@ -206,9 +258,9 @@
                         </text:p>
                     </table:table-cell>
                     <table:table-cell>
-                        <text:p>
-                            <xsl:value-of select="Annotation/Description/dcterms:description" />
-                        </text:p>
+                        <xsl:call-template name="convertElementTextToParagraphs">
+                            <xsl:with-param name="element" select="Annotation/Description/dcterms:description" />
+                        </xsl:call-template>
                     </table:table-cell>
                     <xsl:variable
                         name="columnId"
@@ -229,11 +281,17 @@
                 <xsl:value-of select="$sheetNameSimpleCodeList" />
             </xsl:attribute>
 
+            <table:table-column
+                table:number-columns-repeated="{count(../ColumnSet/Column)}"
+                table:style-name="columnnormal"
+                table:default-cell-style-name="cellvalue" />
+                
             <!-- Write header row with id-attributes of the columns as values. -->
-            <table:table-column table:number-columns-repeated="{count(../ColumnSet/Column)}" />
             <table:table-row>
                 <xsl:for-each select="../ColumnSet/Column">
-                    <table:table-cell office:value-type="string">
+                    <table:table-cell
+                        office:value-type="string"
+                        table:style-name="cellheader">
                         <text:p>
                             <xsl:value-of select="@Id" />
                         </text:p>
@@ -260,9 +318,9 @@
                         <xsl:choose>
                             <xsl:when test="$valueColumnRef = key('columnPositionAndIdKey', $valuePosition)/@Id">
                                 <table:table-cell office:value-type="string">
-                                    <text:p>
-                                        <xsl:value-of select="SimpleValue" />
-                                    </text:p>
+                                    <xsl:call-template name="convertElementTextToParagraphs">
+                                        <xsl:with-param name="element" select="SimpleValue" />
+                                    </xsl:call-template>
                                 </table:table-cell>
                             </xsl:when>
                             <xsl:otherwise>
@@ -277,6 +335,17 @@
                 </table:table-row>
             </xsl:for-each>
         </table:table>
+    </xsl:template>
+
+    <!-- Converts the text in an element to text:p element(s).
+    Where the text contains a new line, a new paragraph is started. -->
+    <xsl:template name="convertElementTextToParagraphs">
+        <xsl:param name="element" />
+        <xsl:for-each select="str:tokenize($element/text(), '&#10;')">
+            <text:p>
+                <xsl:value-of select="." />
+            </text:p>
+        </xsl:for-each>
     </xsl:template>
 
 </xsl:stylesheet>
