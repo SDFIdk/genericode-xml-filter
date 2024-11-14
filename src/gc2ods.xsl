@@ -2,13 +2,15 @@
 <xsl:stylesheet
     version="1.0"
     xmlns:dcterms="http://purl.org/dc/terms/"
+    xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
     xmlns:gc="http://docs.oasis-open.org/codelist/ns/genericode/1.0/"
     xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+    xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
     xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
     xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-    exclude-result-prefixes="gc">
-    
+    exclude-result-prefixes="gc dcterms">
+
     <xsl:output
         method="xml"
         version="1.0"
@@ -41,7 +43,36 @@
         <office:document
             office:version="1.3"
             office:mimetype="application/vnd.oasis.opendocument.spreadsheet">
-            
+
+            <office:automatic-styles>
+                <style:style
+                    style:name="columnnormal"
+                    style:family="table-column">
+                    <style:table-column-properties style:column-width="2.5cm" />
+                </style:style>
+                <style:style
+                    style:name="columnwide"
+                    style:family="table-column">
+                    <style:table-column-properties style:column-width="10cm" />
+                </style:style>
+                <style:style
+                    style:name="columnverywide"
+                    style:family="table-column">
+                    <style:table-column-properties style:column-width="25cm" />
+                </style:style>
+                <style:style
+                    style:name="cellheader"
+                    style:family="table-cell">
+                    <style:text-properties fo:font-weight="bold" />
+                </style:style>
+                <style:style
+                    style:name="cellvalue"
+                    style:family="table-cell">
+                    <style:table-cell-properties fo:wrap-option="wrap" />
+                    <style:text-properties fo:font-weight="normal" />
+                </style:style>
+            </office:automatic-styles>
+
             <office:body>
                 <office:spreadsheet>
                     <xsl:apply-templates select="Identification" />
@@ -59,7 +90,12 @@
             <xsl:attribute name="table:name">
                 <xsl:value-of select="$sheetNameIdentification" />
             </xsl:attribute>
-            <table:table-column table:number-columns-repeated="2" />
+            <table:table-column
+                table:style-name="columnwide"
+                table:default-cell-style-name="cellheader" />
+            <table:table-column
+                table:style-name="columnverywide"
+                table:default-cell-style-name="cellvalue" />
             <xsl:for-each select="*">
                 <xsl:choose>
                     <xsl:when test="count(*) = 0">
@@ -125,13 +161,18 @@
             <xsl:value-of select="concat(name(), '=', .)" />
         </xsl:for-each>
     </xsl:template>
-    
+
     <xsl:template match="gc:CodeList/Annotation/Description">
         <table:table>
             <xsl:attribute name="table:name">
                 <xsl:value-of select="$sheetNameMetadata" />
             </xsl:attribute>
-            <table:table-column table:number-columns-repeated="2" />
+            <table:table-column
+                table:style-name="columnwide"
+                table:default-cell-style-name="cellheader" />
+            <table:table-column
+                table:style-name="columnverywide"
+                table:default-cell-style-name="cellvalue" />
             <xsl:for-each select="dcterms:*">
                 <xsl:call-template name="outputMetadataElementRow">
                     <xsl:with-param
@@ -147,36 +188,45 @@
             <xsl:attribute name="table:name">
                 <xsl:value-of select="$sheetNameColumnSet" />
             </xsl:attribute>
-            <table:table-column table:number-columns-repeated="6" />
+            <table:table-column
+                table:number-columns-repeated="4"
+                table:style-name="columnnormal"
+                table:default-cell-style-name="cellvalue" />
+            <table:table-column
+                table:style-name="columnverywide"
+                table:default-cell-style-name="cellvalue" />
+            <table:table-column
+                table:style-name="columnnormal"
+                table:default-cell-style-name="cellvalue" />
             <!-- Header row -->
             <table:table-row>
-                <table:table-cell>
+                <table:table-cell table:style-name="cellheader">
                     <text:p>
                         <xsl:value-of select="'@Id'" />
                     </text:p>
                 </table:table-cell>
-                <table:table-cell>
+                <table:table-cell table:style-name="cellheader">
                     <text:p>
                         <xsl:value-of select="'@Use'" />
                     </text:p>
                 </table:table-cell>
                 <!-- ShortName not present although it is mandatory: is set to same as @Id in ods2gc.xsl -->
-                <table:table-cell>
+                <table:table-cell table:style-name="cellheader">
                     <text:p>
                         <xsl:value-of select="'Data/@Type'" />
                     </text:p>
                 </table:table-cell>
-                <table:table-cell>
+                <table:table-cell table:style-name="cellheader">
                     <text:p>
                         <xsl:value-of select="'Data/@Lang'" />
                     </text:p>
                 </table:table-cell>
-                <table:table-cell>
+                <table:table-cell table:style-name="cellheader">
                     <text:p>
                         <xsl:value-of select="'Annotation/Description/dcterms:description'" />
                     </text:p>
                 </table:table-cell>
-                <table:table-cell>
+                <table:table-cell table:style-name="cellheader">
                     <text:p>
                         <xsl:value-of select="'Key'" />
                     </text:p>
@@ -229,11 +279,17 @@
                 <xsl:value-of select="$sheetNameSimpleCodeList" />
             </xsl:attribute>
 
+            <table:table-column
+                table:number-columns-repeated="{count(../ColumnSet/Column)}"
+                table:style-name="columnnormal"
+                table:default-cell-style-name="cellvalue" />
+                
             <!-- Write header row with id-attributes of the columns as values. -->
-            <table:table-column table:number-columns-repeated="{count(../ColumnSet/Column)}" />
             <table:table-row>
                 <xsl:for-each select="../ColumnSet/Column">
-                    <table:table-cell office:value-type="string">
+                    <table:table-cell
+                        office:value-type="string"
+                        table:style-name="cellheader">
                         <text:p>
                             <xsl:value-of select="@Id" />
                         </text:p>
