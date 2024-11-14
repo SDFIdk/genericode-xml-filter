@@ -5,11 +5,13 @@
     xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
     xmlns:gc="http://docs.oasis-open.org/codelist/ns/genericode/1.0/"
     xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+    xmlns:str="http://exslt.org/strings"
     xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
     xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
     xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-    exclude-result-prefixes="gc dcterms">
+    exclude-result-prefixes="gc dcterms"
+    extension-element-prefixes="str">
 
     <xsl:output
         method="xml"
@@ -143,9 +145,9 @@
                 </text:p>
             </table:table-cell>
             <table:table-cell office:value-type="string">
-                <text:p>
-                    <xsl:value-of select="text()" />
-                </text:p>
+                <xsl:call-template name="convertElementTextToParagraphs">
+                    <xsl:with-param name="element" select="." />
+                </xsl:call-template>
             </table:table-cell>
         </table:table-row>
     </xsl:template>
@@ -256,9 +258,9 @@
                         </text:p>
                     </table:table-cell>
                     <table:table-cell>
-                        <text:p>
-                            <xsl:value-of select="Annotation/Description/dcterms:description" />
-                        </text:p>
+                        <xsl:call-template name="convertElementTextToParagraphs">
+                            <xsl:with-param name="element" select="Annotation/Description/dcterms:description" />
+                        </xsl:call-template>
                     </table:table-cell>
                     <xsl:variable
                         name="columnId"
@@ -316,9 +318,9 @@
                         <xsl:choose>
                             <xsl:when test="$valueColumnRef = key('columnPositionAndIdKey', $valuePosition)/@Id">
                                 <table:table-cell office:value-type="string">
-                                    <text:p>
-                                        <xsl:value-of select="SimpleValue" />
-                                    </text:p>
+                                    <xsl:call-template name="convertElementTextToParagraphs">
+                                        <xsl:with-param name="element" select="SimpleValue" />
+                                    </xsl:call-template>
                                 </table:table-cell>
                             </xsl:when>
                             <xsl:otherwise>
@@ -333,6 +335,17 @@
                 </table:table-row>
             </xsl:for-each>
         </table:table>
+    </xsl:template>
+
+    <!-- Converts the text in an element to text:p element(s).
+    Where the text contains a new line, a new paragraph is started. -->
+    <xsl:template name="convertElementTextToParagraphs">
+        <xsl:param name="element" />
+        <xsl:for-each select="str:tokenize($element/text(), '&#10;')">
+            <text:p>
+                <xsl:value-of select="." />
+            </text:p>
+        </xsl:for-each>
     </xsl:template>
 
 </xsl:stylesheet>

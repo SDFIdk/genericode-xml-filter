@@ -78,6 +78,7 @@
         </xsl:if>
     </xsl:template>
 
+    <!-- Context table:table-row -->
     <xsl:template name="convertTableRowToXmlElement">
         <xsl:if test="count(table:table-cell/@table:number-columns-repeated) > 0">
             <xsl:message terminate="yes">
@@ -88,19 +89,19 @@
                 <xsl:text>.</xsl:text>
             </xsl:message>
         </xsl:if>
+        <!-- Assume that the first cell contains only one paragraph -->
         <xsl:variable
             name="textFirstCell"
-            select="table:table-cell[position() = 1]/text:p" />
-        <xsl:variable
-            name="textSecondCell"
-            select="table:table-cell[position() = 2]/text:p" />
+            select="table:table-cell[1]/text:p[1]" />
         <xsl:choose>
             <!-- no attributes; no child element, e.g. Version -->
             <xsl:when test="not(contains($textFirstCell, ' ')) and not(contains($textFirstCell, '/'))">
                 <!-- Curly brackets are needed in the specification of the name of the element!
                 They inform the XSLT processor that the contents need to be treated as XPath. -->
                 <xsl:element name="{$textFirstCell}">
-                    <xsl:value-of select="$textSecondCell" />
+                    <xsl:apply-templates
+                        select="table:table-cell[2]"
+                        mode="joinTableCellParagraphs" />
                 </xsl:element>
             </xsl:when>
             <!-- attributes; no child element, e.g. AlternateFormatLocationUri MimeType=text/csv -->
@@ -112,13 +113,17 @@
                             name="attributestring"
                             select="substring-after($textFirstCell, ' ')" />
                     </xsl:call-template>
-                    <xsl:value-of select="$textSecondCell" />
+                    <xsl:apply-templates
+                        select="table:table-cell[2]"
+                        mode="joinTableCellParagraphs" />
                 </xsl:element>
             </xsl:when>
             <!-- no attributes; child element, e.g. Agency/LongName -->
             <xsl:when test="not(contains($textFirstCell, ' ')) and contains($textFirstCell, '/')">
                 <xsl:element name="{substring-after($textFirstCell, '/')}">
-                    <xsl:value-of select="$textSecondCell" />
+                    <xsl:apply-templates
+                        select="table:table-cell[2]"
+                        mode="joinTableCellParagraphs" />
                 </xsl:element>
             </xsl:when>
             <!-- attributes; child element, e.g. Agency/LongName xml:lang=da -->
@@ -130,7 +135,9 @@
                             name="attributestring"
                             select="substring-after($textFirstCell, ' ')" />
                     </xsl:call-template>
-                    <xsl:value-of select="$textSecondCell" />
+                    <xsl:apply-templates
+                        select="table:table-cell[2]"
+                        mode="joinTableCellParagraphs" />
                 </xsl:element>
             </xsl:when>
         </xsl:choose>
@@ -152,8 +159,7 @@
     </xsl:template>
 
     <xsl:template name="tokenizeAttributestringAndCreateAttributes">
-        <xsl:param
-            name="attributestring" />
+        <xsl:param name="attributestring" />
         <xsl:if test="string-length($attributestring) > 0">
             <xsl:for-each select="str:tokenize($attributestring, ',')">
                 <xsl:attribute name="{substring-before(., '=')}">
@@ -283,6 +289,7 @@
         </SimpleCodeList>
     </xsl:template>
 
+    <!-- Context table:table-cell -->
     <xsl:template name="writeValue">
         <!-- number of the column the value is located in the spreadsheet visible in the GUI (column A is 1, column B is 2, etc.)  -->
         <xsl:param name="columnPosition" />
@@ -300,7 +307,9 @@
             is always written as a Value element that does not contain a SimpleValue element. -->
             <xsl:if test="string-length(normalize-space(text:p)) > 0">
                 <SimpleValue>
-                    <xsl:value-of select="text:p" />
+                    <xsl:apply-templates
+                        select="."
+                        mode="joinTableCellParagraphs" />
                 </SimpleValue>
             </xsl:if>
         </Value>
@@ -315,6 +324,22 @@
                     select="$noOfRepetitions - 1" />
             </xsl:call-template>
         </xsl:if>
+    </xsl:template>
+
+    <!-- A cell contains several paragraphs if the user has inserted a line break in it,
+    see also https://help.libreoffice.org/latest/en-US/text/shared/guide/breaking_lines.html
+    (tested with LibreOffice 24.8.0.3).
+    This template is called for cells that potentially contain several paragraphs. -->
+    <xsl:template
+        match="table:table-cell"
+        mode="joinTableCellParagraphs">
+        <xsl:for-each select="text:p">
+            <xsl:value-of select="text()" />
+            <!-- Add a new line if more paragraphs follow -->
+            <xsl:if test="not(position()=last())">
+                <xsl:value-of select="'&#10;'" />
+            </xsl:if>
+        </xsl:for-each>
     </xsl:template>
 
 </xsl:stylesheet>
