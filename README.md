@@ -43,11 +43,11 @@ Prerequisite: LibreOffice is installed, the minimum version needed is 24.2.5[^4]
 #### Via the LibreOffice Calc GUI
 
 1. Access the Open File dialog (for more information about this dialog, see the [LibreOffice Help page on opening files](https://help.libreoffice.org/latest/en-US/text/shared/01/01020000.html))
-2. Select the “Code List Representation (genericode)” file type
+2. Select the “Genericode (*.gc)” file type
 3. Choose the genericode file you want to open
 
 > [!IMPORTANT]
-> The “Code List Representation (genericode)” file type must be chosen instead of “All files (*.*)”, otherwise the file will not be opened correctly.
+> The “Genericode (*.gc)” file type must be chosen instead of “All files (*.*)”, otherwise the file will not be opened correctly.
 
 #### Via the command line prompt
 
@@ -64,6 +64,20 @@ The spreadsheet contains four sheets:
 3. Columns: displays the contents of `/gc:CodeList/ColumnSet`
 4. Values: displays the contents of `/gc:CodeList/SimpleCodeList`
 
+### Exporting a spreadsheet with values only
+
+It is possible to export a spreadsheet that has one sheet, that contains only the actual values of a code list.
+
+> [!IMPORTANT]
+> The sheet containing the values must be called Values.
+
+1. Access the Save as dialog (for more information about this dialog, see the [LibreOffice Help page on saving document in other formats](https://help.libreoffice.org/latest/en-US/text/shared/guide/export_ms.html))
+2. Select the “Genericode (*.gc)” file type
+3. Choose the name and location of the file you want to save.
+
+> [!IMPORTANT]
+> The saved file cannot be opened again with LibreOffice. Its contents are meant for insertion in a file containing the code list metadata.
+
 ### Profile of genericode
 
 Not all possibilities in the genericode standard are supported, and selected additional metadata element on the code list and its columns are supported.
@@ -78,6 +92,7 @@ Conventions and limitations:
 - The `Id` attributes of the columns are used for the column headers in sheet Values.
 - An undefined value is encoded as an empty `Value` element.
 - The order of the `Value` elements must be the same as the order of the `Column` elements, if not, the transformation will be terminated and LibreOffice will display an error.
+- `Annotation/Description/dcterms:description` must be non-empty if that column is not (part of) a key, otherwise there are two empty adjacent cells in sheet Columns and the tool can currently not handle this.
 
 An example:
 
@@ -135,6 +150,16 @@ An example:
 
 ```
 
+### Troubleshooting
+
+Something went wrong with the transformation from or to the genericode if you receive a pop-up with the following text while opening or saving a genericode file:
+
+> Error saving the document <name of file>:
+> General Error.
+> General input/output error
+
+To get more information about what exactly went wrong, you need to execute the transformation using xsltproc, see below.
+
 ## Development
 
 Further development of the XML filter requires the set-up of the XML filter in LibreOffice Calc via Tools -> XML Filter Settings..., see also [Creating XML Filters](https://help.libreoffice.org/latest/en-US/text/shared/guide/xsltfilter_create.html).
@@ -143,7 +168,7 @@ General tab:
 
 - Filter name: Genericode
 - Application: LibreOffice Calc (.ods)
-- Name of file type: Code List Representation (genericode)
+- Name of file type: Genericode
 - File extension: gc
 
 Transformation tab:
@@ -153,7 +178,7 @@ Transformation tab:
 - XSLT for import: location of [gc2ods.xsl](src/gc2ods.xsl) in your local working copy
 - Template for import: (leave empty)
 
-LibreOffice uses the [libxslt](https://gitlab.gnome.org/GNOME/libxslt/-/wikis/home) library. This can be verified by adding the following comment to the output somewhere. libxslt provides an implementation of [XSLT 1.0](https://www.w3.org/TR/xslt-10/) and also supports most [EXSLT extension functions](https://exslt.github.io/).
+LibreOffice uses the [libxslt](https://gitlab.gnome.org/GNOME/libxslt/-/wikis/home) library. This can be verified by adding the following comment to the output somewhere. libxslt provides an implementation of [XSLT 1.0](https://www.w3.org/TR/xslt-10/) and also supports most [EXSLT extension functions](https://exslt.github.io/) (functions in a namespace that starts with `http://exslt.org/`).
 
 ```xml
 <xsl:comment>
@@ -161,6 +186,7 @@ LibreOffice uses the [libxslt](https://gitlab.gnome.org/GNOME/libxslt/-/wikis/ho
 </xsl:comment>
 ```
 
+<a name="xsltproc" />
 Therefore, the XSLT stylesheets can be tested using [xsltproc](https://gnome.pages.gitlab.gnome.org/libxslt/xsltproc.html), the command line tool for libxslt.
 
 For testing [ods2gc.xsl](src/ods2gc.xsl), save the code list you are testing with as a Flat XML ODF Spreadsheet (.fods file extension). Investigate that file using an XML editor and use it as input to the XSLT transformation.
