@@ -69,7 +69,7 @@
                                 select="name()" />
                         </xsl:call-template>
                     </xsl:when>
-                    <xsl:when test="count(*) &gt; 0">
+                    <xsl:when test="count(*) > 0">
                         <!-- Store the name in a variable, as using
                         concat(../name(), '/', name())
                         for the parameter gives the following error with libxslt
@@ -99,7 +99,7 @@
             <table:table-cell office:value-type="string">
                 <text:p>
                     <xsl:value-of select="$nameInRow" />
-                    <xsl:if test="count(@*) &gt; 0">
+                    <xsl:if test="count(@*) > 0">
                         <!-- Whitespace to separate element name from attributes -->
                         <xsl:value-of select="' '" />
                         <xsl:call-template name="stringJoinAttributes" />
@@ -119,7 +119,7 @@
         Do not use double quotation marks att1="value1",att2="value2", ... 
         as LibreOffice may turn them into curly quotation marks! -->
         <xsl:for-each select="@*">
-            <xsl:if test="position() &gt; 1">
+            <xsl:if test="position() > 1">
                 <xsl:value-of select="','" />
             </xsl:if>
             <xsl:value-of select="concat(name(), '=', .)" />

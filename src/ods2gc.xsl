@@ -67,7 +67,7 @@
         match="table:table"
         mode="codeListMetadata">
         <!-- Do not convert if sheet does not contain text -->
-        <xsl:if test="count(table:table-row/table:table-cell/text:p) &gt; 0">
+        <xsl:if test="count(table:table-row/table:table-cell/text:p) > 0">
             <Annotation>
                 <Description>
                     <xsl:for-each select="table:table-row">
@@ -79,7 +79,7 @@
     </xsl:template>
 
     <xsl:template name="convertTableRowToXmlElement">
-        <xsl:if test="count(table:table-cell/@table:number-columns-repeated) &gt; 0">
+        <xsl:if test="count(table:table-cell/@table:number-columns-repeated) > 0">
             <xsl:message terminate="yes">
                 <xsl:text>This stylesheet does not take into account adjacent cells with the same content in sheets </xsl:text>
                 <xsl:value-of select="$sheetNameIdentification" />
@@ -154,7 +154,7 @@
     <xsl:template name="tokenizeAttributestringAndCreateAttributes">
         <xsl:param
             name="attributestring" />
-        <xsl:if test="string-length($attributestring) &gt; 0">
+        <xsl:if test="string-length($attributestring) > 0">
             <xsl:for-each select="str:tokenize($attributestring, ',')">
                 <xsl:attribute name="{substring-before(., '=')}">
                     <xsl:value-of select="substring-after(., '=')" />
@@ -187,8 +187,8 @@
             select="count(table:table-row[position() = 1]/table:table-cell[text:p/text() = 'Key']/preceding-sibling::table:table-cell) + 1" />
 
         <ColumnSet>
-            <xsl:for-each select="table:table-row[position() &gt; 1]">
-                <xsl:if test="count(table:table-cell/@table:number-columns-repeated) &gt; 0">
+            <xsl:for-each select="table:table-row[position() > 1]">
+                <xsl:if test="count(table:table-cell/@table:number-columns-repeated) > 0">
                     <xsl:message terminate="yes">
                         <xsl:text>This stylesheet does not take into account adjacent cells with the same content in sheet </xsl:text>
                         <xsl:value-of select="$sheetNameColumnSet" />
@@ -218,7 +218,7 @@
                         <xsl:attribute name="Type">
                             <xsl:value-of select="table:table-cell[position() = $positionDataType]/text:p" />
                         </xsl:attribute>
-                        <xsl:if test="string-length(table:table-cell[position() = $positionDataLang]/text:p) &gt; 0">
+                        <xsl:if test="string-length(table:table-cell[position() = $positionDataLang]/text:p) > 0">
                             <xsl:attribute name="Lang">
                                 <xsl:value-of select="table:table-cell[position() = $positionDataLang]/text:p" />
                             </xsl:attribute>
@@ -227,8 +227,8 @@
                 </Column>
             </xsl:for-each>
 
-            <xsl:for-each select="table:table-row[position() &gt; 1]">
-                <xsl:if test="string-length(table:table-cell[position() = $positionKey]/text:p) &gt; 0">
+            <xsl:for-each select="table:table-row[position() > 1]">
+                <xsl:if test="string-length(table:table-cell[position() = $positionKey]/text:p) > 0">
                     <Key>
                         <xsl:attribute name="Id">
                             <xsl:value-of select="table:table-cell[position() = $positionKey]/text:p" />
@@ -253,9 +253,9 @@
         <!-- The header row is used to create a lookup key, see above;
         process the actual data in the rest of the rows -->
         <SimpleCodeList>
-            <xsl:for-each select="table:table-row[position() &gt; 1]">
+            <xsl:for-each select="table:table-row[position() > 1]">
                 <!-- Do not take into account empty rows (rows with only whitespace will be converted though) -->
-                <xsl:if test="count(table:table-cell/text:p) &gt; 0">
+                <xsl:if test="count(table:table-cell/text:p) > 0">
                     <Row>
                         <xsl:for-each select="table:table-cell">
                             <xsl:call-template name="writeValue">
@@ -298,13 +298,13 @@
             </xsl:attribute>
             <!-- In this transformation, an undefined value (an empty string in the cell) (only applicable in optional columns)
             is always written as a Value element that does not contain a SimpleValue element. -->
-            <xsl:if test="string-length(normalize-space(text:p)) &gt; 0">
+            <xsl:if test="string-length(normalize-space(text:p)) > 0">
                 <SimpleValue>
                     <xsl:value-of select="text:p" />
                 </SimpleValue>
             </xsl:if>
         </Value>
-        <xsl:if test="$noOfRepetitions &gt; 1">
+        <xsl:if test="$noOfRepetitions > 1">
             <!-- This is a recursive template -->
             <xsl:call-template name="writeValue">
                 <xsl:with-param
