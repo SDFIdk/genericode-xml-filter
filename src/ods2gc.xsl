@@ -321,50 +321,62 @@
         Following this convention makes it easier to transform to other formats.
         This is more strict than the genericode specification, which also allows rows that do not have a
         Value element corresponding to every column. -->
-        <Value>
-            <xsl:attribute name="ColumnRef">
-            	<xsl:value-of select="key('valuesTableColumnPositionKey', $columnPosition)/text:p" />
-            </xsl:attribute>
-            <!-- In this transformation, an undefined value (an empty string in the cell) (only applicable in optional columns)
-            is always written as a Value element that does not contain a SimpleValue element. -->
-            <xsl:if test="string-length(normalize-space(text:p)) > 0 and not(@office:value-type = 'void')">
-                <SimpleValue>
-                    <!-- See https://docs.oasis-open.org/office/OpenDocument/v1.3/os/part3-schema/OpenDocument-v1.3-os-part3-schema.html#attribute-office_value-type -->
-                    <xsl:choose>
-                        <xsl:when test="@office:value-type = 'boolean'">
-                            <xsl:value-of select="@office:boolean-value" />
-                        </xsl:when>
-                        <xsl:when test="@office:value-type = 'date'">
-                            <xsl:value-of select="@office:date-value" />
-                        </xsl:when>
-                        <xsl:when test="@office:value-type = 'float' or @office:value-type = 'percentage'">
-                            <xsl:value-of select="@office:value" />
-                        </xsl:when>
-                        <xsl:when test="@office:value-type = 'time'">
-                            <xsl:value-of select="@office:time-value" />
-                        </xsl:when>
-                        <xsl:otherwise>
-                            <!-- E.g. when @office:value-type = 'string' -->
-                            <xsl:apply-templates
-                                select="."
-                                mode="joinTableCellParagraphs" />
-                        </xsl:otherwise>
-                    </xsl:choose>
-                </SimpleValue>
+        <xsl:variable
+            name="correspondingTableCellHeader"
+            select="key('valuesTableColumnPositionKey', $columnPosition)" />
+        <!-- No Value is written and no further iterations are done if any of the following are true:
+             - the first table row in the Values sheet does not contain a table cell in the given position;
+             - the first table row in the Values sheet in the given position does not contain anything.
+             This avoids
+             - the following in the output: <Value ColumnRef=""/>;
+             - unneccesary iterations of this recursive template.
+        -->
+        <xsl:if test="count($correspondingTableCellHeader) = 1 and count($correspondingTableCellHeader/text:p) > 0">
+            <Value>
+                <xsl:attribute name="ColumnRef">
+                	<xsl:value-of select="$correspondingTableCellHeader/text:p" />
+                </xsl:attribute>
+                <!-- In this transformation, an undefined value (an empty string in the cell) (only applicable in optional columns)
+                is always written as a Value element that does not contain a SimpleValue element. -->
+                <xsl:if test="string-length(normalize-space(text:p)) > 0 and not(@office:value-type = 'void')">
+                    <SimpleValue>
+                        <!-- See https://docs.oasis-open.org/office/OpenDocument/v1.3/os/part3-schema/OpenDocument-v1.3-os-part3-schema.html#attribute-office_value-type -->
+                        <xsl:choose>
+                            <xsl:when test="@office:value-type = 'boolean'">
+                                <xsl:value-of select="@office:boolean-value" />
+                            </xsl:when>
+                            <xsl:when test="@office:value-type = 'date'">
+                                <xsl:value-of select="@office:date-value" />
+                            </xsl:when>
+                            <xsl:when test="@office:value-type = 'float' or @office:value-type = 'percentage'">
+                                <xsl:value-of select="@office:value" />
+                            </xsl:when>
+                            <xsl:when test="@office:value-type = 'time'">
+                                <xsl:value-of select="@office:time-value" />
+                            </xsl:when>
+                            <xsl:otherwise>
+                                <!-- E.g. when @office:value-type = 'string' -->
+                                <xsl:apply-templates
+                                    select="."
+                                    mode="joinTableCellParagraphs" />
+                            </xsl:otherwise>
+                        </xsl:choose>
+                    </SimpleValue>
+                </xsl:if>
+            </Value>
+            <xsl:if test="$noOfRepetitions > 1">
+                <!-- This is a recursive template -->
+                <xsl:apply-templates
+                    select="."
+                    mode="writeValue">
+                    <xsl:with-param
+                        name="columnPosition"
+                        select="$columnPosition + 1" />
+                    <xsl:with-param
+                        name="noOfRepetitions"
+                        select="$noOfRepetitions - 1" />
+                </xsl:apply-templates>
             </xsl:if>
-        </Value>
-        <xsl:if test="$noOfRepetitions > 1">
-            <!-- This is a recursive template -->
-            <xsl:apply-templates
-                select="."
-                mode="writeValue">
-                <xsl:with-param
-                    name="columnPosition"
-                    select="$columnPosition + 1" />
-                <xsl:with-param
-                    name="noOfRepetitions"
-                    select="$noOfRepetitions - 1" />
-            </xsl:apply-templates>
         </xsl:if>
     </xsl:template>
 
